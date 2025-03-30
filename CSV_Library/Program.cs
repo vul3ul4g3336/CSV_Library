@@ -1,4 +1,5 @@
 ﻿
+using BenchmarkDotNet.Running;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,23 +13,23 @@ namespace CSV_Library
     {
         static void Main(string[] args)
         {
-
-            Student student = new Student();
-            student.Name = "Leo";
-            student.Id = "1";
-            student.Description = "I am a Student";
-            student.Score = "100";
-            Student student1 = new Student();
-            student1.Name = "A";
-            student1.Id = "12";
-            student1.Description = "測試測試測試測試測試測試測試測試測試測試測試測試";
-            student1.Score = "20";
-            string address = "C:\\Users\\TUF\\source\\repos\\CSV_Library\\CSV_Library\\bin\\Debug\\data.csv";
-            List<Student> students = new List<Student>() {
-            student,student1
-            };
+            #region
+            //Student student = new Student();
+            //student.Name = "Leo";
+            //student.Id = "1";
+            //student.Description = "I am a Student";
+            //student.Score = "100";
+            //Student student1 = new Student();
+            //student1.Name = "A";
+            //student1.Id = "12";
+            //student1.Description = "測試測試測試測試測試測試測試測試測試測試測試測試";
+            //student1.Score = "20";
+            //string address = "C:\\Users\\TUF\\source\\repos\\CSV_Library\\CSV_Library\\bin\\Debug\\data.csv";
+            //List<Student> students = new List<Student>() {
+            //student,student1
+            //};
             //CSV.Write(address, students);
-            CSV.Write(address, student);
+            //CSV.Write(address, student);
             //CSV.Write(address, student1);
             //CSV.Read<Student>("C:\\Users\\TUF\\source\\repos\\CSV_Library\\CSV_Library\\bin\\Debug\\data.csv");
             //List<StudentData> studentsData = CSV.Read<StudentData>("C:\\Users\\TUF\\source\\repos\\CSV_Library\\CSV_Library\\bin\\Debug\\data.csv");
@@ -45,9 +46,10 @@ namespace CSV_Library
             //{
             //    Console.WriteLine($"{s.Name}  {s.Id} {s.Description} {s.Score}");
             //}
+            #endregion
 
 
-
+            var summary = BenchmarkRunner.Run<Origin_VS_StringBuilder>();
 
 
 
