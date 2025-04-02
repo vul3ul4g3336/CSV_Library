@@ -1,4 +1,5 @@
-﻿using Microsoft.Diagnostics.Tracing.Parsers.MicrosoftWindowsWPF;
+﻿using FastSerialization;
+using Microsoft.Diagnostics.Tracing.Parsers.MicrosoftWindowsWPF;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -20,11 +21,7 @@ namespace CSV_Library
         delegate object GetterDelegate(object target);
         static Dictionary<string, SetterDelegate> _setters = null;
         static Dictionary<string, GetterDelegate> _getters = null;
-
-        //static PropertyInfo[] props = typeof(DataModel).GetProperties();
-        private static readonly SetterDelegate[] _setterDelegates =
-    infos.Select(p => CreateSetter(p)).ToArray();
-
+        private static SetterDelegate[] _setterDelegates = null;
 
 
 
@@ -68,65 +65,41 @@ namespace CSV_Library
         {
             //PathCorrectly.CreateFile(filePath);
             //HeaderManager.headerCheck(datas[0], filePath);
-            //if (infos == null || _getters == null)
-            //{
-            //    infos = typeof(T).GetProperties();
-            //    _getters = typeof(T)
-            //.GetProperties()
-            //.ToDictionary(
-            //    prop => prop.Name,
-            //    prop => CreateGetter(prop)
-            //);
+            if (infos == null || _getters == null)
+            {
+                infos = typeof(T).GetProperties();
+                _getters = typeof(T)
+            .GetProperties()
+            .ToDictionary(
+                prop => prop.Name,
+                prop => CreateGetter(prop)
+            );
 
-            //}
-            //StringBuilder stringBuilder = new StringBuilder(90);
+            }
 
-            //using (StreamWriter writer = new StreamWriter(filePath, true, Encoding.Default))
-            //{
-
-            //    for (int i = 0; i < datas.Count; i++)
-            //    {
-
-            //        for (int j = 0; j < infos.Length; j++)
-            //        {
-            //            var value = _getters[infos[j].Name](datas[i]);
-            //            stringBuilder.Append(value.ToString());
-
-            //            // ✅ 正確使用 j 判斷逗號
-            //            if (j < infos.Length - 1)
-            //                stringBuilder.Append(',');
-
-            //        }
-            //        writer.WriteLine(stringBuilder.ToString());
-            //        stringBuilder.Clear();
-            //    }
-
-            //}
-            #region 不用字典
-            char[] buffer = new char[60];
-            var properties = typeof(T).GetProperties();
-            var getters = properties.Select(CreateGetter).ToArray();
-            StringBuilder sb = new StringBuilder(90);
-            using (StreamWriter writer = new StreamWriter(filePath, append: true, Encoding.Default))
+            #region 使用Buffer
+            char[] buffer = new char[100];
+            StringBuilder stringBuilder = new StringBuilder(100);
+            using (StreamWriter writer = new StreamWriter(filePath, true, Encoding.Default))
             {
 
-                foreach (var data in datas)
+                for (int i = 0; i < datas.Count; i++)
                 {
-                    for (int i = 0; i < properties.Length; i++)
+
+                    for (int j = 0; j < infos.Length; j++)
                     {
-                        var value = getters[i](data);
-                        sb.Append(value);
-                        if (i < properties.Length - 1)
-                            sb.Append(',');
+                        stringBuilder.Append(_getters[infos[j].Name](datas[i]));//infos[j].GetValue(dataModel)
+                        if (j < infos.Length - 1) stringBuilder.Append(',');
                     }
-
-                    writer.WriteLine(sb.ToString());
-
-                    sb.Clear();
+                    stringBuilder.Append('\n');
+                    int length = stringBuilder.Length;
+                    stringBuilder.CopyTo(0, buffer, 0, length);
+                    writer.Write(buffer, 0, length);
+                    stringBuilder.Clear();
                 }
+
             }
             #endregion
-
 
 
 
@@ -158,18 +131,20 @@ namespace CSV_Library
             if (infos == null)
             {
                 infos = typeof(T).GetProperties();
-                _setters =
-                typeof(T)
-                .GetProperties()
-                .ToDictionary(
-                    prop => prop.Name,
-                    prop => CreateSetter(prop)
-                );
+                //_setters =
+                //typeof(T)
+                //.GetProperties()
+                //.ToDictionary(
+                //    prop => prop.Name,
+                //    prop => CreateSetter(prop)
+                //);
+                _setterDelegates =
+                infos.Select(p => CreateSetter(p)).ToArray();
             }
+
+
             List<T> list = new List<T>();
-            int fieldsCount = typeof(T).GetProperties().Length;
             StreamReader reader = new StreamReader(filePath, Encoding.Default);
-            /* HeaderManager.headerConfirm(reader.ReadLine().Split(','));*/ // 讀標頭
             int count = 0;
             while (!reader.EndOfStream)
             {
@@ -183,91 +158,36 @@ namespace CSV_Library
                     break;
 
                 T t = new T();
-                string line = reader.ReadLine();
-                ReadOnlySpan<char> span = line.AsSpan();
-                #region
-                //string[] datas = new string[fieldsCount];
-                //int start = 0;
-                //int field = 0;
-                //while (true)
-                //{
-                //    int commaIndex = span.Slice(start).IndexOf(',');
-                //    if (commaIndex == -1)
-                //    {
-                //        datas[field++] = span.Slice(start).ToString();
-                //        break;
-                //    }
-                //    else
-                //    {
-                //        datas[field++] = span.Slice(start, commaIndex).ToString();
-                //        start += commaIndex + 1;
-                //    }
-                //}
-                #endregion
+                ReadOnlySpan<char> datas = reader.ReadLine().AsSpan();
                 int start = 0;
-                int field = 0;
-                while (true)
+                for (int i = 0; i < infos.Length; i++)
                 {
                     // 找逗號位置
-                    int commaIndex = span.Slice(start).IndexOf(',');
+                    int commaIndex = datas.Slice(start).IndexOf(',');
 
                     if (commaIndex == -1)
                     {
                         // 最後一欄
-                        _setterDelegates[field++](t, span.Slice(start).ToString());
+                        _setterDelegates[i](t, datas.Slice(start).ToString());
                         break;
                     }
                     else
                     {
-                        _setterDelegates[field++](t, span.Slice(start, commaIndex).ToString());
+                        _setterDelegates[i](t, datas.Slice(start, commaIndex).ToString());
                         start += commaIndex + 1;
                     }
                 }
 
-
-                //PropertyInfo[] infos = t.GetType().GetProperties();
-
-                //for (int i = 0; i < infos.Length; i++)
-                //{
-                //    _setters[infos[i].Name](t, _setterDelegates[i]);
-                //    //object value = Convert.ChangeType(datas[i], infos[i].PropertyType);
-                //    //infos[i].SetValue(t, value);
-                //}
 
                 list.Add(t);
             }
             reader.Close();
             GC.Collect();
             return list;
+
         }
-        //if (!PathCorrectly.CorrectlyOrNot(filePath))
-        //{
-        //    return null;
-        //}
 
-
-        //StreamReader reader = new StreamReader(filePath, Encoding.Default);
-        //List<T> list = new List<T>();
-        //HeaderManager.headerConfirm(reader.ReadLine().Split(',')); // 讀標頭
-        //while (!reader.EndOfStream)
-        //{
-        //    T t = new T();
-        //    string[] inputs = reader.ReadLine().Split(','); // 4
-        //    PropertyInfo[] infos = t.GetType().GetProperties(); //10
-        //    for (int i = 0; i < infos.Length; i++) // 2
-        //    {
-        //        infos[i].SetValue(t, inputs[i]);
-        //    }
-        //    list.Add(t);
-        //}
-        //reader.Close();
-        //return list;
     }
 
-
-    //        不進入非使用者程式碼 '記帳.Models.RecordModel..ctor'
-    //逐步執行: 不進入屬性 '記帳.Models.RecordModel.set_Date'。 若要逐步執行屬性或運算子，請前往[工具] -> [選項] -> [偵錯]，然後取消選取[不進入屬性和運算子(僅限受控)]。
-    //逐步執行: 不進入屬性 '記帳.Models.RecordModel.set_Price'。 若要逐步執行屬性或運算子，請前往[工具] -> [選項] -> [偵錯]，然後取消選取[不進入屬性和運算子(僅限受控)]。
-    //逐步執行: 不進入屬性 '記帳.Models.RecordModel.set_Type'。 若要逐步執行屬性或運算子，請前往[工具
 }
 
