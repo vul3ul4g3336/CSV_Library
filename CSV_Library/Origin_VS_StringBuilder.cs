@@ -62,9 +62,6 @@ namespace CSV_Library
         [Benchmark]
         public void StringBuilder()
         {
-
-
-
             DataModel dataModel = new DataModel()
             {
                 id = "1",
@@ -90,8 +87,6 @@ namespace CSV_Library
         [Benchmark]
         public void Buffer()
         {
-
-
             DataModel dataModel = new DataModel()
             {
                 id = "1",
