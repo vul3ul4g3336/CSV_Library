@@ -146,6 +146,10 @@ namespace CSV_Library
             List<T> list = new List<T>();
             StreamReader reader = new StreamReader(filePath, Encoding.Default);
             int count = 0;
+            char[] buffer = new char[100]; // 暫存用的 buffer，長度可以依據需求調整
+            int recordCount = 0;
+            int charsRead = 0;
+            int start = 0;
             while (!reader.EndOfStream)
             {
                 count++;
@@ -157,29 +161,50 @@ namespace CSV_Library
                 if (count > startLine + takeCount)
                     break;
 
-                T t = new T();
-                ReadOnlySpan<char> datas = reader.ReadLine().AsSpan();
-                int start = 0;
-                for (int i = 0; i < infos.Length; i++)
+                while (recordCount < takeCount && (charsRead = reader.Read(buffer, 0, buffer.Length)) > 0)
                 {
-                    // 找逗號位置
-                    int commaIndex = datas.Slice(start).IndexOf(',');
+                    for (int i = 0; i < charsRead; i++)
+                    {
+                        if (buffer[i] == '\n' || (buffer[i] == '\r' && (i + 1 >= charsRead || buffer[i + 1] != '\n')))
+                        {
+                            // 抓出一行的資料
+                            var lineSpan = new ReadOnlySpan<char>(buffer, start, i - start);
+                            #region 反射處理單一一筆資料
+                            T t = new T();
+                            int startPosition = 0;
+                            for (int j = 0; j < infos.Length; j++)
+                            {
+                                // 找逗號位置
+                                int commaIndex = lineSpan.Slice(startPosition).IndexOf(',');
 
-                    if (commaIndex == -1)
-                    {
-                        // 最後一欄
-                        _setterDelegates[i](t, datas.Slice(start).ToString());
-                        break;
+                                if (commaIndex == -1)
+                                {
+                                    // 最後一欄
+                                    _setterDelegates[j](t, lineSpan.Slice(startPosition).ToString());
+                                    break;
+                                }
+                                else
+                                {
+                                    _setterDelegates[j](t, lineSpan.Slice(startPosition, commaIndex).ToString());
+                                    startPosition += commaIndex + 1;
+                                }
+                            }
+
+                            list.Add(t);
+                            #endregion
+
+
+                            recordCount++;
+                            if (recordCount >= takeCount)
+                                break;
+
+                            start = i + 1;
+                        }
                     }
-                    else
-                    {
-                        _setterDelegates[i](t, datas.Slice(start, commaIndex).ToString());
-                        start += commaIndex + 1;
-                    }
+                    // 若有未處理的部分可以依需求續接下一批讀入的 buffer，但這裡我們只抓前三筆就好
                 }
 
 
-                list.Add(t);
             }
             reader.Close();
             GC.Collect();
